@@ -196,6 +196,7 @@ def update_violation_clip(
     x_api_key: str = Header(...),
     db: Session = Depends(get_db),
 ):
+    # Accept global webhook key or per-camera key
     if x_api_key != settings.WEBHOOK_API_KEY:
         camera = db.query(Camera).filter(Camera.api_key == x_api_key).first()
         if not camera:

@@ -11,10 +11,11 @@ from app.models.camera import Camera
 
 router = APIRouter(prefix="/api/uploads", tags=["uploads"])
 
-UPLOAD_DIR = getattr(settings, "UPLOADS_DIR", os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads"))
+UPLOAD_DIR = settings.UPLOADS_DIR
 
 
 def _validate_api_key(x_api_key: str, db=None):
+    # Accept global webhook key or per-camera key
     if x_api_key == settings.WEBHOOK_API_KEY:
         return
     if db:

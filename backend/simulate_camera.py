@@ -11,17 +11,19 @@ Usage:
     python simulate_camera.py --url http://your-server.com/api/webhook/violation
 """
 
+
 import argparse
 import json
 import random
 import time
+import os
 from datetime import datetime
 
 import requests
 
 # Configuration
-DEFAULT_URL = "http://localhost:8000/api/webhook/violation"
-API_KEY = "dashcam-webhook-secret-key"
+DEFAULT_URL = os.getenv("SIMULATE_CAMERA_URL", "http://localhost:8000/api/webhook/violation")
+API_KEY = os.getenv("WEBHOOK_API_KEY", "dashcam-webhook-secret-key")
 
 # Violation types with their probability weights and typical speeds
 VIOLATION_PROFILES = {

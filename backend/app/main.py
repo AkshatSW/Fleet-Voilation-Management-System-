@@ -24,12 +24,22 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+allowed_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS.split(","),
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "Accept",
+        "Origin",
+        "X-Requested-With",
+        "X-API-Key",
+    ],
+    expose_headers=["Content-Disposition"],
 )
 
 # Register routers
@@ -48,8 +58,8 @@ app.include_router(signaling.router)
 app.include_router(notifications.router)
 app.include_router(fcm.router)
 
-# Mount static files for uploads
-uploads_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
+# Mount static files for uploads (uses configurable UPLOADS_DIR)
+uploads_dir = settings.UPLOADS_DIR
 os.makedirs(uploads_dir, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
