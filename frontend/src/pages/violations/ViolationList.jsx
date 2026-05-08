@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Table, Card, Select, DatePicker, Typography, Button, Row, Col, Badge, Space, Tag, Tooltip } from 'antd'
-import { VideoCameraOutlined, CameraOutlined } from '@ant-design/icons'
+import { Table, Card, Select, DatePicker, Typography, Button, Row, Col, Badge, Space, Tag } from 'antd'
 import EventTypeTag from '@/components/common/EventTypeTag'
 import SeverityTag from '@/components/common/SeverityTag'
 import { violationService } from '@/services'
@@ -69,38 +68,6 @@ export default function ViolationList() {
   }
 
   const columns = [
-    {
-      title: 'Media',
-      key: 'media',
-      width: 90,
-      render: (_, record) => (
-        <Space size={4}>
-          {record.snapshot_url ? (
-            <Tooltip title="Snapshot available — click to view detail">
-              <img
-                src={record.snapshot_url}
-                alt=""
-                style={{ width: 44, height: 28, objectFit: 'cover', borderRadius: 4, border: '1px solid #eee' }}
-                onError={(e) => { e.currentTarget.style.display = 'none' }}
-              />
-            </Tooltip>
-          ) : (
-            <Tooltip title="No snapshot">
-              <CameraOutlined style={{ color: '#ccc', fontSize: 18 }} />
-            </Tooltip>
-          )}
-          {record.clip_url ? (
-            <Tooltip title="Video clip available — click to view detail">
-              <VideoCameraOutlined style={{ color: '#1677ff', fontSize: 18 }} />
-            </Tooltip>
-          ) : (
-            <Tooltip title="No video clip">
-              <VideoCameraOutlined style={{ color: '#ccc', fontSize: 18 }} />
-            </Tooltip>
-          )}
-        </Space>
-      ),
-    },
     {
       title: 'Timestamp',
       dataIndex: 'timestamp',

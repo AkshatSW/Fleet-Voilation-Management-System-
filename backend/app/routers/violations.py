@@ -16,7 +16,7 @@ from app.models.user import User
 from app.models.camera import Camera
 from app.schemas.violation import (
     ViolationCreate, ViolationResponse, ViolationListResponse, ViolationReviewUpdate,
-    ViolationClipUpdate, ViolationSnapshotUpdate,
+    ViolationClipUpdate,
 )
 from app.services.scoring_engine import get_penalty_points, calculate_monthly_score
 
@@ -149,8 +149,6 @@ def create_violation(
         longitude=data.longitude,
         speed=data.speed,
         video_url=data.video_url,
-        snapshot_url=data.snapshot_url,
-        clip_url=data.clip_url,
     )
     db.add(v)
     db.commit()
@@ -207,29 +205,5 @@ def update_violation_clip(
     if not violation:
         raise HTTPException(status_code=404, detail="Violation not found")
     violation.clip_url = data.clip_url
-    db.commit()
-    return {"status": "ok"}
-
-
-@router.patch("/{violation_id}/snapshot")
-def update_violation_snapshot(
-    violation_id: int,
-    data: ViolationSnapshotUpdate,
-    x_api_key: str = Header(...),
-    db: Session = Depends(get_db),
-):
-    """Attach a snapshot URL to an existing violation.
-
-    Lets the frontend POST the violation first (instant UI feedback) and
-    upload the snapshot in parallel, PATCHing the URL in when ready.
-    """
-    if x_api_key != settings.WEBHOOK_API_KEY:
-        camera = db.query(Camera).filter(Camera.api_key == x_api_key).first()
-        if not camera:
-            raise HTTPException(status_code=401, detail="Invalid API key")
-    violation = db.query(Violation).filter(Violation.id == violation_id).first()
-    if not violation:
-        raise HTTPException(status_code=404, detail="Violation not found")
-    violation.snapshot_url = data.snapshot_url
     db.commit()
     return {"status": "ok"}

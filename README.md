@@ -42,7 +42,6 @@ AI-powered fleet safety monitoring and violation tracking system with real-time 
   - [Dashboard & Analytics](#dashboard--analytics)
   - [Driver Camera & AI Detection](#driver-camera--ai-detection)
   - [Stop Sign Detection (Visual + GPS Fusion)](#stop-sign-detection-visual--gps-fusion)
-  - [Stop Sign & OSM Alerts](#stop-sign--osm-alerts)
   - [Live Monitoring via WebRTC](#live-monitoring-via-webrtc)
   - [Violation Management & Review](#violation-management--review)
   - [Safety Scoring Engine](#safety-scoring-engine)
