@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Card, Row, Col, Typography, Button, Tag, List, Badge, Space, Empty,
 } from 'antd'
@@ -99,6 +100,7 @@ export default function ManagerMonitoring() {
   const [loading, setLoading] = useState(true)
   const [violations, setViolations] = useState([])
   const [activeFeed, setActiveFeed] = useState(null)
+  const navigate = useNavigate()
 
   const fetchCameras = useCallback(() => {
     cameraService.getList()
@@ -260,29 +262,41 @@ export default function ManagerMonitoring() {
               size="small"
               loading={loading}
               renderItem={(item) => (
-                <List.Item>
-                  <Space direction="vertical" size={0} style={{ width: '100%' }}>
-                    <Space size={4} wrap>
-                      <Tag color={EVENT_TYPES[item.event_type]?.color} style={{ fontSize: 11 }}>
-                        {EVENT_TYPES[item.event_type]?.label || item.event_type}
-                      </Tag>
-                      <Tag color={SEVERITY_COLORS[item.severity]} style={{ fontSize: 11 }}>
-                        {item.severity}
-                      </Tag>
-                      {item.review_status && (
-                        <Tag color={REVIEW_STATUSES[item.review_status]?.color} style={{ fontSize: 10 }}>
-                          {REVIEW_STATUSES[item.review_status]?.label || item.review_status}
+                <List.Item
+                  onClick={() => navigate(`/violations/${item.id}`)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <Space align="start" size={8} style={{ width: '100%' }}>
+                    {item.snapshot_url ? (
+                      <img
+                        src={item.snapshot_url}
+                        alt=""
+                        style={{ width: 56, height: 42, objectFit: 'cover', borderRadius: 4, border: '1px solid #eee', flexShrink: 0 }}
+                        onError={(e) => { e.currentTarget.style.display = 'none' }}
+                      />
+                    ) : (
+                      <div style={{ width: 56, height: 42, background: '#fafafa', borderRadius: 4, border: '1px dashed #d9d9d9', flexShrink: 0 }} />
+                    )}
+                    <Space direction="vertical" size={0} style={{ flex: 1, minWidth: 0 }}>
+                      <Space size={4} wrap>
+                        <Tag color={EVENT_TYPES[item.event_type]?.color} style={{ fontSize: 11 }}>
+                          {EVENT_TYPES[item.event_type]?.label || item.event_type}
                         </Tag>
-                      )}
+                        <Tag color={SEVERITY_COLORS[item.severity]} style={{ fontSize: 11 }}>
+                          {item.severity}
+                        </Tag>
+                        {item.clip_url && (
+                          <Tag icon={<VideoCameraOutlined />} color="blue" style={{ fontSize: 10 }}>clip</Tag>
+                        )}
+                      </Space>
+                      <Text type="secondary" style={{ fontSize: 11 }}>
+                        {item.driver_name} | {item.vehicle_plate}
+                      </Text>
+                      <Text type="secondary" style={{ fontSize: 10 }}>
+                        {dayjs(item.timestamp).format('MMM DD HH:mm:ss')}
+                        {item.speed ? ` | ${item.speed} km/h` : ''}
+                      </Text>
                     </Space>
-                    <Text type="secondary" style={{ fontSize: 11 }}>
-                      {item.driver_name} | {item.vehicle_plate}
-                    </Text>
-                    <Text type="secondary" style={{ fontSize: 10 }}>
-                      {dayjs(item.timestamp).format('MMM DD HH:mm:ss')}
-                      {item.speed ? ` | ${item.speed} km/h` : ''}
-                      {item.snapshot_url ? ' | Has snapshot' : ''}
-                    </Text>
                   </Space>
                 </List.Item>
               )}

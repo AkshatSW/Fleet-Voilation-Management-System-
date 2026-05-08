@@ -13,6 +13,7 @@ import DriverCamera from '@/pages/cameras/DriverCamera'
 import ManagerMonitoring from '@/pages/monitoring/ManagerMonitoring'
 import Reports from '@/pages/reports/Reports'
 import StopSignSimulation from '@/pages/dev/StopSignSimulation'
+import PhoneGPSBridge from '@/pages/phone-gps/PhoneGPSBridge'
 import { ROLES } from '@/constants'
 
 export const router = createBrowserRouter([
@@ -23,6 +24,11 @@ export const router = createBrowserRouter([
   {
     path: '/login',
     element: <Login />,
+  },
+  {
+    // Phone-as-GPS pairing page. Public — sessionId is the pairing secret.
+    path: '/phone-gps/:sessionId',
+    element: <PhoneGPSBridge />,
   },
   {
     element: (

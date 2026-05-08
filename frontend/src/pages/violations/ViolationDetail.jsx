@@ -1,6 +1,56 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, Descriptions, Spin, Button, Typography, Tag, Space, Row, Col, Image } from 'antd'
+
+/**
+ * Video element that fixes WebM "0:00 duration" bug.
+ *
+ * Rolling-buffer MediaRecorder chunks are concatenated without closing the
+ * EBML container, so the duration header is never written. Browsers then
+ * render the player with duration=Infinity or 0:00 even though all frames
+ * are present.
+ *
+ * Fix: seek to a huge currentTime once metadata loads — this forces the
+ * browser to scan the entire file and compute the real duration — then
+ * seek back to 0.
+ */
+function ClipPlayer({ src }) {
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const video = ref.current
+    if (!video || !src) return
+
+    let seeked = false
+    const onLoaded = () => {
+      if (seeked) return
+      if (!isFinite(video.duration) || video.duration === 0) {
+        seeked = true
+        // Seek past end forces browser to walk the file and emit durationchange
+        video.currentTime = 1e101
+        const onTimeUpdate = () => {
+          video.removeEventListener('timeupdate', onTimeUpdate)
+          video.currentTime = 0
+        }
+        video.addEventListener('timeupdate', onTimeUpdate)
+      }
+    }
+    video.addEventListener('loadedmetadata', onLoaded)
+    return () => video.removeEventListener('loadedmetadata', onLoaded)
+  }, [src])
+
+  return (
+    <video
+      ref={ref}
+      controls
+      preload="metadata"
+      style={{ width: '100%', borderRadius: 8, background: '#000' }}
+      src={src}
+    >
+      Your browser does not support video playback.
+    </video>
+  )
+}
 import { ArrowLeftOutlined, VideoCameraOutlined, EnvironmentOutlined, CameraOutlined } from '@ant-design/icons'
 import EventTypeTag from '@/components/common/EventTypeTag'
 import SeverityTag from '@/components/common/SeverityTag'
@@ -84,13 +134,7 @@ export default function ViolationDetail() {
               <Col xs={24} md={12}>
                 <Text strong style={{ display: 'block', marginBottom: 8 }}>Video Clip</Text>
                 {violation.clip_url ? (
-                  <video
-                    controls
-                    style={{ width: '100%', borderRadius: 8, background: '#000' }}
-                    src={violation.clip_url}
-                  >
-                    Your browser does not support video playback.
-                  </video>
+                  <ClipPlayer src={violation.clip_url} />
                 ) : violation.video_url ? (
                   <Button type="link" href={violation.video_url} target="_blank" icon={<VideoCameraOutlined />}>
                     View Video Clip
