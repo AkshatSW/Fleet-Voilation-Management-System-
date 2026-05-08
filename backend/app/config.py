@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "fleet-monitoring-secret-key-change-in-production"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 120
     # Comma-separated list of allowed origins for CORS (no trailing slash)
-    CORS_ORIGINS: str = "http://localhost:5173"
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:5176,http://127.0.0.1:5176"
     WEBHOOK_API_KEY: str = "dashcam-webhook-secret-key"
     FCM_SERVICE_ACCOUNT_PATH: str = ""
     # Directory for uploads. Use /tmp/uploads on serverless platforms.

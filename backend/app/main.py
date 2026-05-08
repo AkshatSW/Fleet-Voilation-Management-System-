@@ -8,12 +8,18 @@ from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.database import engine, Base
 from app.models import User, Company, Vehicle, Driver, Violation, SafetyScore, Camera
-from app.routers import auth, companies, vehicles, drivers, violations, webhook, dashboard, reports, safety_scores, cameras, uploads, signaling, notifications, fcm
+from app.routers import auth, companies, vehicles, drivers, violations, webhook, dashboard, reports, safety_scores, cameras, uploads, signaling, notifications, fcm, detection, phone_gps
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    # Warm up YOLO in the background so the first /api/detect/stop-sign
+    # request doesn't pay the ONNX export + load cost (~10-30s).
+    import threading
+    from app.services import yolo_service, seatbelt_service
+    threading.Thread(target=yolo_service.warm_up, daemon=True).start()
+    threading.Thread(target=seatbelt_service.warm_up, daemon=True).start()
     yield
 
 
@@ -57,6 +63,8 @@ app.include_router(uploads.router)
 app.include_router(signaling.router)
 app.include_router(notifications.router)
 app.include_router(fcm.router)
+app.include_router(detection.router)
+app.include_router(phone_gps.router)
 
 # Mount static files for uploads (uses configurable UPLOADS_DIR)
 uploads_dir = settings.UPLOADS_DIR

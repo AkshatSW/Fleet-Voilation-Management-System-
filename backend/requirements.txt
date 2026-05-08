@@ -12,3 +12,11 @@ python-dotenv==1.0.1
 aiofiles==24.1.0
 websockets==14.1
 firebase-admin>=6.0.0
+ultralytics>=8.3.0
+Pillow>=10.0.0
+onnx>=1.15.0
+onnxruntime>=1.16.0
+
+# Training pipeline extras (not needed for inference).
+# Install only if you plan to run training/train.py.
+roboflow>=1.1.0     # dataset download helper (training/download_dataset.py)

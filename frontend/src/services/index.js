@@ -63,6 +63,35 @@ export const cameraService = {
   },
 }
 
+export const detectionService = {
+  detectStopSign: (blob) => {
+    const formData = new FormData()
+    formData.append('file', blob, 'frame.jpg')
+    const token = localStorage.getItem('access_token')
+    return fetch('/api/detect/stop-sign', {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    }).then((r) => {
+      if (!r.ok) throw new Error(`detect ${r.status}`)
+      return r.json()
+    })
+  },
+  detectSeatbelt: (blob) => {
+    const formData = new FormData()
+    formData.append('file', blob, 'frame.jpg')
+    const token = localStorage.getItem('access_token')
+    return fetch('/api/detect/seatbelt', {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    }).then((r) => {
+      if (!r.ok) throw new Error(`detect ${r.status}`)
+      return r.json()
+    })
+  },
+}
+
 export const uploadService = {
   uploadSnapshot: (file, apiKey) => {
     const formData = new FormData()
