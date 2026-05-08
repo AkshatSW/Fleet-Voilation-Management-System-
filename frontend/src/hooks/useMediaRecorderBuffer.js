@@ -1,72 +1,91 @@
 import { useRef, useCallback } from 'react'
 
-export default function useMediaRecorderBuffer({ bufferSeconds = 20 } = {}) {
-  const recorderRef = useRef(null)
-  const chunksRef = useRef([])
-  const isRecordingRef = useRef(false)
-  const pendingClipRef = useRef(null)
+/**
+ * Per-violation MediaRecorder. Each captureClip() call spawns a fresh
+ * MediaRecorder on the current stream, records for `seconds`, stops, and
+ * returns a complete WebM blob. Because MediaRecorder.stop() flushes the
+ * EBML container properly, every clip has a valid Duration header and plays
+ * without the "0:00" bug.
+ *
+ * Trade-off: no pre-event buffer — the clip shows what happened AFTER the
+ * violation fires, for `seconds` seconds. Simpler than a rolling buffer and
+ * reliable under concurrent violations (each gets its own recorder instance).
+ *
+ *   start(stream)     — store the stream reference
+ *   captureClip(sec)  — start a new recording on the stored stream, returns
+ *                       Promise<Blob|null> that resolves when the recording
+ *                       stops (`sec` seconds later)
+ *   captureSnapshot   — grab a single JPEG frame from a video element
+ *   stop()            — clear the stream reference (stops future captureClip
+ *                       calls from being able to run)
+ *
+ * The hook-exported API is unchanged so callers (DriverCamera.jsx) don't
+ * need to adapt.
+ */
+const CLIP_SECONDS = 5
+
+export default function useMediaRecorderBuffer() {
   const streamRef = useRef(null)
+  const mimeTypeRef = useRef(null)
 
   const start = useCallback((stream) => {
-    if (!stream || isRecordingRef.current) return
     streamRef.current = stream
-    chunksRef.current = []
-
-    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+    mimeTypeRef.current = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
       ? 'video/webm;codecs=vp9'
       : 'video/webm'
-
-    const recorder = new MediaRecorder(stream, { mimeType })
-    recorderRef.current = recorder
-
-    recorder.ondataavailable = (e) => {
-      if (e.data && e.data.size > 0) {
-        chunksRef.current.push({ blob: e.data, time: Date.now() })
-        // Keep only bufferSeconds worth of chunks
-        const cutoff = Date.now() - bufferSeconds * 1000
-        chunksRef.current = chunksRef.current.filter((c) => c.time >= cutoff)
-
-        // If we have a pending clip capture, check if enough post-event time has passed
-        if (pendingClipRef.current) {
-          const { resolveClip, eventTime, postSeconds } = pendingClipRef.current
-          if (Date.now() - eventTime >= postSeconds * 1000) {
-            const allChunks = chunksRef.current.map((c) => c.blob)
-            resolveClip(new Blob(allChunks, { type: mimeType }))
-            pendingClipRef.current = null
-          }
-        }
-      }
-    }
-
-    recorder.start(1000) // 1-second chunks
-    isRecordingRef.current = true
-  }, [bufferSeconds])
-
-  const stop = useCallback(() => {
-    if (recorderRef.current && isRecordingRef.current) {
-      recorderRef.current.stop()
-      isRecordingRef.current = false
-      chunksRef.current = []
-      streamRef.current = null
-      if (pendingClipRef.current) {
-        pendingClipRef.current.resolveClip(null)
-        pendingClipRef.current = null
-      }
-    }
   }, [])
 
-  const captureClip = useCallback((preSeconds = 5, postSeconds = 10) => {
+  const stop = useCallback(() => {
+    streamRef.current = null
+  }, [])
+
+  const captureClip = useCallback((seconds = CLIP_SECONDS) => {
     return new Promise((resolve) => {
-      if (!isRecordingRef.current) {
+      const stream = streamRef.current
+      if (!stream) {
         resolve(null)
         return
       }
-      // Store the resolve so ondataavailable can fulfill it after postSeconds
-      pendingClipRef.current = {
-        resolveClip: resolve,
-        eventTime: Date.now(),
-        postSeconds,
+      const mimeType = mimeTypeRef.current || 'video/webm'
+      let recorder
+      try {
+        recorder = new MediaRecorder(stream, { mimeType })
+      } catch (err) {
+        console.error('[mediaBuffer] MediaRecorder ctor failed:', err)
+        resolve(null)
+        return
       }
+
+      const chunks = []
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunks.push(e.data)
+      }
+      recorder.onstop = () => {
+        if (!chunks.length) {
+          resolve(null)
+          return
+        }
+        // Because stop() flushed a proper EBML footer, this blob has real
+        // duration metadata — no 0:00 bug, no post-processing needed.
+        resolve(new Blob(chunks, { type: mimeType }))
+      }
+      recorder.onerror = (e) => {
+        console.error('[mediaBuffer] recorder error:', e)
+        resolve(null)
+      }
+
+      recorder.start()
+      // Stop after `seconds` — use setTimeout rather than relying on the
+      // timeslice argument of start(), so the onstop event fires exactly
+      // once with all accumulated data.
+      setTimeout(() => {
+        try {
+          if (recorder.state !== 'inactive') recorder.stop()
+        } catch (err) {
+          console.error('[mediaBuffer] recorder.stop() failed:', err)
+          resolve(null)
+        }
+      }, seconds * 1000)
     })
   }, [])
 

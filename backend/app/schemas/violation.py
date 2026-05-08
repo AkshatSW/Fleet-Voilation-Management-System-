@@ -22,6 +22,8 @@ class ViolationCreate(BaseModel):
     longitude: float | None = None
     speed: int | None = None
     video_url: str | None = None
+    snapshot_url: str | None = None
+    clip_url: str | None = None
 
 
 class ViolationResponse(BaseModel):
@@ -64,6 +66,10 @@ class ViolationReviewUpdate(BaseModel):
 
 class ViolationClipUpdate(BaseModel):
     clip_url: str
+
+
+class ViolationSnapshotUpdate(BaseModel):
+    snapshot_url: str
 
 
 class WebhookPayload(BaseModel):
