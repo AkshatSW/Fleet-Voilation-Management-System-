@@ -20,12 +20,8 @@
     "axios": "^1.13.5",
     "dayjs": "^1.11.19",
     "firebase": "^12.10.0",
-    "fix-webm-duration": "^1.0.6",
-    "leaflet": "^1.9.4",
-    "onnxruntime-web": "^1.24.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-leaflet": "^5.0.0",
     "react-router-dom": "^7.13.0"
   },
   "devDependencies": {
