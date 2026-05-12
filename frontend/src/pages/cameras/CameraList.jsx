@@ -144,6 +144,9 @@ export default function CameraList() {
       .catch(() => message.error('Failed to delete camera'))
   }
 
+  // Filter to only show cameras assigned to drivers (include all past records for audit trail)
+  const assignedCameras = cameras.filter((c) => c.current_driver_name && c.current_vehicle_plate)
+
   const columns = [
     {
       title: 'Name',
@@ -218,32 +221,47 @@ export default function CameraList() {
   ]
 
   return (
-    <div>
-      <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
-        <Col>
-          <Title level={4} style={{ margin: 0 }}>Camera Management</Title>
-        </Col>
-        <Col>
-          <Space>
-            <Button icon={<ReloadOutlined />} onClick={fetchCameras}>Refresh</Button>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
-              Register Camera
-            </Button>
-          </Space>
-        </Col>
-      </Row>
+    <div style={{ background: '#f8fafc', minHeight: '100vh', paddingBottom: 40, paddingTop: 24 }}>
+      {/* Page Header */}
+      <div style={{ 
+        background: '#1e3a8a', 
+        borderRadius: 12, 
+        padding: '16px 24px',
+        marginBottom: 24,
+        marginLeft: 24,
+        marginRight: 24
+      }}>
+        <Title level={3} style={{ margin: 0, color: '#ffffff', fontWeight: 700 }}>Camera Management</Title>
+        <Text style={{ fontSize: 13, color: '#e0e7ff' }}>Configure and monitor your fleet cameras</Text>
+      </div>
 
-      <Card>
+      <div style={{ paddingLeft: 24, paddingRight: 24 }}>
+        <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
+          <Col>
+            <Space size="large">
+              <Button icon={<ReloadOutlined />} size="large" onClick={fetchCameras} style={{ borderRadius: 8, fontWeight: 600 }}>Refresh</Button>
+              <Button type="primary" size="large" icon={<PlusOutlined />} onClick={() => setModalOpen(true)} style={{ borderRadius: 8, fontWeight: 600, background: '#1e3a8a', border: 'none' }}>Register Camera</Button>
+            </Space>
+          </Col>
+        </Row>
+
+      <Card style={{ border: 'none', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)', borderRadius: 8, overflow: 'hidden', background: '#ffffff' }} bodyStyle={{ padding: 0 }} title={<div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 14, fontWeight: 600, color: '#0f172a' }}><Text strong>Cameras</Text><Badge count={assignedCameras.length} style={{ backgroundColor: '#1e3a8a', fontSize: 11, fontWeight: 700 }} /></div>} headStyle={{ background: '#ffffff', borderBottom: '1px solid #e2e8f0', padding: '16px 24px' }}>
         <Table
-          dataSource={cameras}
+          dataSource={assignedCameras}
           columns={columns}
           rowKey="id"
           loading={loading}
-          pagination={false}
+          pagination={{ pageSize: 12, showTotal: (t) => `${t} cameras`, position: ['bottomRight'] }}
           expandable={{
-            expandedRowRender: (record) => <ConnectionInfo camera={record} />,
+            expandedRowRender: (record) => <div style={{ background: '#ffffff', padding: 16 }}><ConnectionInfo camera={record} /></div>,
           }}
           size="middle"
+          onRow={() => ({
+            style: { cursor: 'pointer', transition: 'all 0.2s ease' },
+            onMouseEnter: (e) => e.currentTarget.style.backgroundColor = '#f1f5f9',
+            onMouseLeave: (e) => e.currentTarget.style.backgroundColor = '',
+          })}
+          scroll={{ x: 1200 }}
         />
       </Card>
 
@@ -281,6 +299,7 @@ export default function CameraList() {
           </Form.Item>
         </Form>
       </Modal>
+      </div>
     </div>
   )
 }

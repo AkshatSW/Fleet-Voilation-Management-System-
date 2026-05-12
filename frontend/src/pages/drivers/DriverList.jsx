@@ -4,7 +4,7 @@ import {
   Table, Card, Select, Typography, Input, Tag, Row, Col, Badge, Space, Switch,
   Button, Modal, Form, message,
 } from 'antd'
-import { PlusOutlined } from '@ant-design/icons'
+import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
 import RiskBadge from '@/components/common/RiskBadge'
 import { driverService, vehicleService } from '@/services'
 import { usePermission } from '@/hooks/usePermission'
@@ -45,7 +45,7 @@ export default function DriverList() {
 
   // Real-time updates via WebSocket
   useRealtimeUpdates(useCallback((eventType) => {
-    if (eventType === 'violation:new') {
+    if (eventType === 'violation:new' || eventType === 'driver:created' || eventType === 'driver:updated' || eventType === 'driver:deleted' || eventType === 'camera:created' || eventType === 'camera:deleted') {
       fetchData(false)
     }
   }, [fetchData]))
@@ -134,66 +134,49 @@ export default function DriverList() {
   ]
 
   return (
-    <div>
-      <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
+    <div style={{ background: '#f8fafc', minHeight: '100vh', paddingBottom: 40, paddingTop: 24 }}>
+      <Row justify="space-between" align="middle" style={{ marginBottom: 32, paddingBottom: 24, borderBottom: '1px solid #e2e8f0' }}>
         <Col>
-          <Title level={4} style={{ margin: 0 }}>Drivers</Title>
+          <Title level={3} style={{ margin: 0, color: '#0f172a', fontWeight: 700 }}>Driver Management</Title>
+          <Text type="secondary" style={{ fontSize: 13, color: '#64748b' }}>Manage and monitor your driver fleet</Text>
         </Col>
         <Col>
-          <Space>
+          <Space size="large">
             {canEditDrivers && (
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => setRegisterVisible(true)}
-              >
+              <Button type="primary" size="large" icon={<PlusOutlined />} onClick={() => setRegisterVisible(true)} style={{ borderRadius: 8, fontWeight: 600, background: '#1e3a8a', border: 'none' }}>
                 Register Driver
               </Button>
             )}
             {lastUpdated && (
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                Updated {dayjs(lastUpdated).format('HH:mm:ss')}
-              </Text>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: '#ffffff', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981' }}></div>
+                <Text type="secondary" style={{ fontSize: 12 }}>Updated {dayjs(lastUpdated).format('HH:mm:ss')}</Text>
+              </div>
             )}
-            <Badge status="success" text={<Text style={{ fontSize: 12 }}>Live</Text>} />
           </Space>
         </Col>
       </Row>
-      <Card size="small" style={{ marginBottom: 16 }}>
-        <Row gutter={[12, 12]}>
-          <Col>
-            <Search
-              placeholder="Search by name or ID"
-              allowClear
-              style={{ width: 250 }}
-              onSearch={setSearch}
-              onChange={(e) => !e.target.value && setSearch('')}
-            />
+
+      <Card style={{ border: 'none', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)', borderRadius: 8, marginBottom: 24, background: '#ffffff' }} bodyStyle={{ padding: '20px' }}>
+        <Text strong style={{ fontSize: 13, color: '#0f172a' }}>Filters & Search</Text>
+        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+          <Col xs={24} sm={12} md={6}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Input placeholder="Search by name or employee ID" allowClear onPressEnter={(e) => setSearch(e.target.value)} onChange={(e) => !e.target.value && setSearch('')} style={{ borderRadius: 8, height: 32, textAlign: 'center' }} size="small" />
+              <Button type="primary" icon={<SearchOutlined />} onClick={() => {}} style={{ height: 32, width: 32, borderRadius: 8, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }} />
+            </div>
           </Col>
-          <Col>
-            <Select
-              placeholder="Risk Level"
-              allowClear
-              style={{ width: 150 }}
-              options={Object.keys(RISK_LEVELS).map((k) => ({ label: k, value: k }))}
-              onChange={setRiskFilter}
-            />
+          <Col xs={24} sm={12} md={4}>
+            <Select placeholder="Risk Level" allowClear style={{ width: '100%' }} options={Object.keys(RISK_LEVELS).map((k) => ({ label: k, value: k }))} onChange={setRiskFilter} size="small" />
+          </Col>
+          <Col xs={24} md={14} style={{ display: 'flex', alignItems: 'center' }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>Showing {filtered.length} of {drivers.length} drivers</Text>
           </Col>
         </Row>
       </Card>
-      <Card>
-        <Table
-          dataSource={filtered}
-          columns={columns}
-          rowKey="id"
-          loading={loading}
-          pagination={{ pageSize: 20, showTotal: (t) => `${t} drivers` }}
-          onRow={(record) => ({
-            onClick: () => navigate(`/drivers/${record.id}`),
-            style: { cursor: 'pointer' },
-          })}
-          size="middle"
-        />
+
+      <Card style={{ border: 'none', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)', borderRadius: 8, overflow: 'hidden', background: '#ffffff' }} bodyStyle={{ padding: 0 }} title={<div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 14, fontWeight: 600, color: '#0f172a' }}><Text strong>Drivers</Text><Badge count={filtered.length} style={{ backgroundColor: '#1e3a8a', fontSize: 11, fontWeight: 700 }} /></div>} headStyle={{ background: '#ffffff', borderBottom: '1px solid #e2e8f0', padding: '16px 24px' }}>
+        <Table dataSource={filtered} columns={columns} rowKey="id" loading={loading} pagination={{ pageSize: 15, showTotal: (t) => `${t} drivers`, position: ['bottomRight'] }} onRow={(record) => ({ onClick: () => navigate(`/drivers/${record.id}`), style: { cursor: 'pointer' }, onMouseEnter: (e) => e.currentTarget.style.backgroundColor = '#f1f5f9', onMouseLeave: (e) => e.currentTarget.style.backgroundColor = '' })} size="middle" scroll={{ x: 1000 }} />
       </Card>
 
       <Modal

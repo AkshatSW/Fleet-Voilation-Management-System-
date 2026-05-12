@@ -18,6 +18,7 @@ import useWebRTCPublisher from '@/hooks/useWebRTCPublisher'
 import useStopSignLocal from '@/hooks/useStopSignLocal'
 import useStopSignFusion from '@/hooks/useStopSignFusion'
 import usePhoneGPSPairing from '@/hooks/usePhoneGPSPairing'
+import useRealtimeUpdates from '@/hooks/useRealtimeUpdates'
 import osmService from '@/services/osmService'
 import { getDistance } from '@/utils/geo'
 import { subscribeStopSignSimulation } from '@/services/stopSignSimulationBus'
@@ -290,8 +291,7 @@ export default function DriverCamera() {
     setPairModalOpen(false)
   }, [phoneGPS])
 
-  useEffect(() => {
-    // For DRIVER role, fetch their linked driver profile and auto-select
+  const fetchDriversAndVehicles = useCallback(() => {
     if (isDriverRole) {
       authService.getMyDriver().then((res) => {
         setSelectedDriver(res.data.id)
@@ -305,7 +305,25 @@ export default function DriverCamera() {
       const webcam = res.data.find((c) => c.camera_type === 'webcam')
       if (webcam) setCameraDbId(String(webcam.id))
     }).catch(console.error)
-  }, [])
+  }, [isDriverRole])
+
+  useEffect(() => {
+    fetchDriversAndVehicles()
+  }, [fetchDriversAndVehicles])
+
+  // Real-time updates: refresh driver/vehicle list when drivers/vehicles change
+  useRealtimeUpdates(useCallback((eventType, eventData) => {
+    if (eventType === 'driver:created' || eventType === 'driver:updated' || eventType === 'driver:deleted') {
+      fetchDriversAndVehicles()
+    } else if (eventType === 'vehicle:created' || eventType === 'vehicle:updated' || eventType === 'vehicle:deleted') {
+      vehicleService.getList().then((res) => setVehicles(res.data)).catch(console.error)
+    }
+    // If current driver was deleted and we're driver role, clear selection
+    if (eventType === 'driver:deleted' && isDriverRole && selectedDriver === eventData?.driver_id) {
+      setSelectedDriver(null)
+      message.warning('Your driver profile has been updated')
+    }
+  }, [isDriverRole, selectedDriver, fetchDriversAndVehicles]))
 
   // Sensor simulation
   useEffect(() => {
@@ -374,8 +392,6 @@ export default function DriverCamera() {
     const eventType = violationType === 'STOP_SIGN_VIOLATION' ? 'stop_sign_violation' : 'stop_sign_detected'
 
     // Trigger voice alert for stop signs
-    const voiceMessage = 'Stop sign ahead. Prepare to stop.'
-
     const voiceMessage = data.signLabel === 'Stop Sign'
       ? 'Stop sign ahead. Prepare to stop.'
       : data.signLabel === 'Traffic Light'
@@ -539,19 +555,9 @@ export default function DriverCamera() {
   }, [])
 
   // Prefer road-facing stream for stop sign detection, fallback to main stream.
-  const {
-    startDetection: startStopSignDetection,
-    stopDetection: stopStopSignDetection,
-    isModelReady: isStopSignModelReady,
-  } = useStopSignCamera(
-    stopSignVideoRef,
-    handleCameraDetection,
-    handleCameraLost,
-    stopSignBboxRef,
-  )
   // In-browser YOLOv8n via ONNX Runtime Web — no server round-trip, GPU accelerated.
   // See hooks/useStopSignLocal.js.
-  const { startDetection: startStopSignDetection, stopDetection: stopStopSignDetection } =
+  const { startDetection: startStopSignDetection, stopDetection: stopStopSignDetection, isModelReady: isStopSignModelReady } =
     useStopSignLocal(videoRef, handleCameraDetection, handleCameraLost, stopSignBboxRef)
 
   // Fetch OSM traffic signs when location is available
@@ -698,7 +704,6 @@ export default function DriverCamera() {
         gpsIntervalRef.current = null
       }
     }
-  }, [gpsEnabled, fusion])
   }, [gpsEnabled, cameraActive, detectionEnabled, refreshSpeedLimit])
 
   // ─────────── Seatbelt detection (backend two-stage YOLOv5 + Keras) ───────────
@@ -1043,60 +1048,6 @@ export default function DriverCamera() {
 
     return () => clearInterval(id)
   }, [cameraActive, drawRoadOverlay])
-    // Stop-sign bbox overlay — styled like a YOLO detection annotation:
-    // green box, label pill with text on top-left corner of the box.
-    const ss = stopSignBboxRef.current
-    if (ss?.bbox) {
-      const [bx, by, bw, bh] = ss.bbox
-      const label = ss.label || 'Stop'
-      ctx.strokeStyle = '#16c47f'
-      ctx.lineWidth = 3
-      ctx.strokeRect(bx, by, bw, bh)
-
-      ctx.font = 'bold 16px sans-serif'
-      const pad = 6
-      const textW = ctx.measureText(label).width
-      const labelH = 22
-      const labelY = Math.max(0, by - labelH)
-      ctx.fillStyle = '#16c47f'
-      ctx.fillRect(bx, labelY, textW + pad * 2, labelH)
-      ctx.fillStyle = '#000'
-      ctx.textBaseline = 'middle'
-      ctx.fillText(label, bx + pad, labelY + labelH / 2)
-      ctx.textBaseline = 'alphabetic'
-    }
-
-    // Seatbelt overlay. Always exactly ONE box per frame:
-    //   green = worn (passed every gate)
-    //   orange = YOLO found a candidate region but it was rejected
-    const sb = seatbeltBboxRef.current
-    if (sb && (!sb.timestamp || Date.now() - sb.timestamp < 6000)) {
-      const list = Array.isArray(sb.candidates) ? sb.candidates : []
-      ctx.font = 'bold 16px sans-serif'
-      ctx.lineWidth = 3
-      for (const c of list) {
-        if (!c.bbox) continue
-        const [bx, by, bw, bh] = c.bbox
-        const color = c.worn ? '#16c47f' : '#ff7a00'
-        ctx.strokeStyle = color
-        ctx.strokeRect(bx, by, bw, bh)
-
-        const label = c.label || (c.worn ? 'Seatbelt Worn' : 'Seatbelt?')
-        const pad = 6
-        const textW = ctx.measureText(label).width
-        const labelH = 22
-        const labelY = Math.max(0, by - labelH)
-        ctx.fillStyle = color
-        ctx.fillRect(bx, labelY, textW + pad * 2, labelH)
-        ctx.fillStyle = '#fff'
-        ctx.textBaseline = 'middle'
-        ctx.fillText(label, bx + pad, labelY + labelH / 2)
-        ctx.textBaseline = 'alphabetic'
-      }
-    }
-
-    animationRef.current = requestAnimationFrame(detectFrame)
-  }, [sendViolation])
 
   // Attaches a MediaStream to the <video> and wires up everything downstream
   // (face detection loop, stop-sign detection, recording buffer, RTC publish,
@@ -1155,7 +1106,24 @@ export default function DriverCamera() {
   }
 
   const startCamera = async () => {
-    if (!faceLandmarkerRef.current) await initFaceLandmarker()
+    // Skip if model is already loading
+    if (modelLoading) {
+      message.info('AI model is loading, please wait...')
+      return
+    }
+
+    // If model isn't ready, load it first (usually already loading in background)
+    if (!faceLandmarkerRef.current) {
+      setModelLoading(true)
+      try {
+        await initFaceLandmarker()
+      } catch (err) {
+        message.error(`Failed to initialize AI model: ${err.message}`)
+        setModelLoading(false)
+        return
+      }
+      setModelLoading(false)
+    }
 
     try {
       const mainStream = await navigator.mediaDevices.getUserMedia({
@@ -1280,6 +1248,15 @@ export default function DriverCamera() {
   }, [mediaBuffer, unpublish, stopStopSignDetection])
 
   useEffect(() => {
+    // Pre-initialize MediaPipe face detection in the background when page loads
+    // This happens async without blocking the UI
+    if (!faceLandmarkerRef.current) {
+      initFaceLandmarker().catch((err) => {
+        console.warn('Background face detection init failed:', err)
+        // Will retry when user clicks Start Camera
+      })
+    }
+    
     return () => {
       if (animationRef.current) cancelAnimationFrame(animationRef.current)
       if (streamRef.current) streamRef.current.getTracks().forEach((t) => t.stop())
@@ -1302,13 +1279,25 @@ export default function DriverCamera() {
   const speedColor = overLimit ? '#f5222d' : nearLimit ? '#fa8c16' : '#52c41a'
 
   return (
-    <div>
+    <div style={{ background: '#f8fafc', minHeight: '100vh', paddingBottom: 40, paddingTop: 24 }}>
       {/* Siren audio element (hidden) */}
       <audio ref={sirenAudioRef} src="/siren.mp3" preload="auto" style={{ display: 'none' }} />
+      
+      {/* Page Header */}
+      <div style={{ 
+        background: '#1e3a8a', 
+        borderRadius: 12, 
+        padding: '16px 24px',
+        marginBottom: 24,
+        marginLeft: 24,
+        marginRight: 24
+      }}>
+        <Title level={3} style={{ margin: 0, color: '#ffffff', fontWeight: 700 }}>Driver Camera</Title>
+        <Text style={{ fontSize: 13, color: '#e0e7ff' }}>Monitor and test driver camera feeds</Text>
+      </div>
+
+      <div style={{ paddingLeft: 24, paddingRight: 24 }}>
       <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
-        <Col>
-          <Title level={4} style={{ margin: 0 }}>Driver Camera</Title>
-        </Col>
         <Col>
           <Space>
             {isPublishing && (
@@ -1328,28 +1317,48 @@ export default function DriverCamera() {
       <Card size="small" style={{ marginBottom: 16 }}>
         <Row gutter={16} align="middle">
           <Col span={7}>
+            <div style={{ marginBottom: 8 }}>
+              <Text type="secondary" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Select Driver</Text>
+            </div>
             {isDriverRole ? (
-              <Text strong>
+              <Text strong style={{ display: 'block', padding: '8px 12px', background: '#f5f5f5', borderRadius: 6 }}>
                 {drivers.length > 0 ? `${drivers[0].name} (${drivers[0].employee_id})` : 'Loading...'}
               </Text>
             ) : (
-              <Select
-                placeholder="Select Driver"
-                style={{ width: '100%' }}
-                showSearch
-                filterOption={(input, opt) => opt.label.toLowerCase().includes(input.toLowerCase())}
-                options={drivers.map((d) => ({ label: `${d.name} (${d.employee_id})`, value: d.id }))}
-                onChange={setSelectedDriver}
-              />
+              <>
+                <Select
+                  placeholder={`Select Driver (${drivers.length} available)`}
+                  style={{ width: '100%' }}
+                  virtual={false}
+                  popupMatchSelectWidth={false}
+                  size="small"
+                  popupClassName="driver-camera-select-popup"
+                  notFoundContent={drivers.length === 0 ? 'No drivers available' : undefined}
+                  options={drivers.map((d) => ({ 
+                    label: `${d.name} (${d.employee_id})`, 
+                    value: d.id 
+                  }))}
+                  onChange={setSelectedDriver}
+                />
+              </>
             )}
           </Col>
           <Col span={7}>
+            <div style={{ marginBottom: 8 }}>
+              <Text type="secondary" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Select Vehicle</Text>
+            </div>
             <Select
-              placeholder="Select Vehicle"
+              placeholder={`Select Vehicle (${vehicles.length} available)`}
               style={{ width: '100%' }}
-              showSearch
-              filterOption={(input, opt) => opt.label.toLowerCase().includes(input.toLowerCase())}
-              options={vehicles.map((v) => ({ label: `${v.plate_number} - ${v.model}`, value: v.id }))}
+              virtual={false}
+              popupMatchSelectWidth={false}
+              size="small"
+              popupClassName="driver-camera-select-popup"
+              notFoundContent={vehicles.length === 0 ? 'No vehicles available' : undefined}
+              options={vehicles.map((v) => ({ 
+                label: `${v.plate_number} - ${v.model}`, 
+                value: v.id 
+              }))}
               onChange={setSelectedVehicle}
             />
           </Col>
@@ -1361,6 +1370,10 @@ export default function DriverCamera() {
                 onClick={cameraActive ? stopCamera : startCamera}
                 loading={modelLoading}
                 disabled={!selectedDriver || !selectedVehicle}
+                style={{ 
+                  boxShadow: cameraActive ? '0 0 0 2px rgba(30, 58, 138, 0.2)' : 'none',
+                  transition: 'all 0.2s ease'
+                }}
               >
                 {modelLoading ? 'Loading AI Model...' : cameraActive ? 'Stop Camera' : 'Start Camera'}
               </Button>
@@ -1370,6 +1383,9 @@ export default function DriverCamera() {
                   onClick={startScreenShare}
                   loading={modelLoading}
                   disabled={!selectedDriver || !selectedVehicle}
+                  style={{ 
+                    transition: 'all 0.2s ease'
+                  }}
                 >
                   Share Screen
                 </Button>
@@ -1922,7 +1938,7 @@ export default function DriverCamera() {
           )
         })()}
       </Modal>
-
+      </div>
     </div>
   )
 }
