@@ -2,9 +2,9 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    # PostgreSQL connection string. Must be provided via env in production.
+    # PostgreSQL connection string.
     # Format: postgresql://<user>:<password>@<host>:<port>/<db>
-    DATABASE_URL: str = ""
+    DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/fleet_violations"
     SECRET_KEY: str = "fleet-monitoring-secret-key-change-in-production"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 120
     # Comma-separated list of allowed origins for CORS (no trailing slash)

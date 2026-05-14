@@ -2,8 +2,8 @@
 # One-click launcher for Fleet Violation Monitoring (Linux / macOS).
 # - Bootstraps backend venv + pip install on first run
 # - Bootstraps frontend node_modules on first run
-# - Seeds the SQLite DB if missing
-# - Starts FastAPI (uvicorn) on :8000 and Vite on :5173
+# - Seeds the PostgreSQL database if missing
+# - Starts FastAPI (uvicorn) on :8000 and Vite on :5176
 # - Ctrl+C stops both.
 
 set -e
@@ -92,11 +92,12 @@ echo "==> Starting backend  (http://localhost:8000)"
   cd "$BACKEND_DIR"
   # shellcheck disable=SC1091
   source "$VENV_DIR/bin/activate"
-  exec uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+  export WATCHFILES_IGNORE_PERMISSION_DENIED=true
+  exec uvicorn app.main:app --reload --reload-dir app --reload-exclude "postgres-data/*" --host 0.0.0.0 --port 8000
 ) &
 BACKEND_PID=$!
 
-echo "==> Starting frontend (http://localhost:5173)"
+echo "==> Starting frontend (http://localhost:5176)"
 (
   cd "$FRONTEND_DIR"
   exec npm run dev
@@ -105,7 +106,7 @@ FRONTEND_PID=$!
 
 echo ""
 echo "Backend  PID: $BACKEND_PID  -> http://localhost:8000"
-echo "Frontend PID: $FRONTEND_PID  -> http://localhost:5173"
+echo "Frontend PID: $FRONTEND_PID  -> http://localhost:5176"
 echo "Press Ctrl+C to stop both."
 
 wait -n "$BACKEND_PID" "$FRONTEND_PID" 2>/dev/null || true

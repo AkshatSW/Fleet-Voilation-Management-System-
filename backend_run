@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+# Run backend with Postgres available (Docker preferred).
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$ROOT_DIR/backend"
+
+usage() {
+  cat <<EOF
+Usage: backend_run [--no-docker]
+
+Starts a dedicated local Postgres Docker container from backend/db_dumps/fleet_violations.sql,
+waits for it to be ready, then launches the FastAPI backend (uvicorn).
+
+Options:
+  --no-docker    Skip Docker and use DATABASE_URL from the environment/.env
+  --help         Show this help
+EOF
+}
+
+NO_DOCKER=0
+for arg in "$@"; do
+  case "$arg" in
+    --no-docker) NO_DOCKER=1 ;;
+    --help) usage; exit 0 ;;
+    *) ;;
+  esac
+done
+
+# Load .env file if present (export variables)
+if [ -f .env ]; then
+  # shellcheck disable=SC1091
+  set -o allexport
+  # Use a subshell source to avoid surprising tokenization
+  . ./.env
+  set +o allexport
+fi
+
+DEFAULT_DB_PORT=5433
+CONTAINER_NAME="fleet-postgres-local"
+HOST_PORT="${FLEET_PG_PORT:-$DEFAULT_DB_PORT}"
+
+# Provide sensible defaults if not set in .env or if Docker is used.
+: "${DATABASE_URL:=postgresql://postgres:postgres@localhost:${HOST_PORT}/fleet_violations}"
+
+start_docker_postgres() {
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "docker not found; skipping docker postgres setup"
+    return 1
+  fi
+
+  if [ ! -f "$ROOT_DIR/backend/db_dumps/fleet_violations.sql" ]; then
+    echo "Missing PostgreSQL dump: backend/db_dumps/fleet_violations.sql"
+    return 2
+  fi
+
+  if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+    echo "${CONTAINER_NAME} already running"
+  else
+    if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+      echo "Starting existing ${CONTAINER_NAME} container"
+      docker start "${CONTAINER_NAME}" >/dev/null
+      chmod 755 "$ROOT_DIR/backend/postgres-data" 2>/dev/null || true
+    else
+      echo "Creating ${CONTAINER_NAME} container on host port ${HOST_PORT}"
+      mkdir -p "$ROOT_DIR/backend/postgres-data"
+      docker run --name "${CONTAINER_NAME}" \
+        -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=fleet_violations \
+        -v "$ROOT_DIR/backend/postgres-data":/var/lib/postgresql/data \
+        -v "$ROOT_DIR/backend/db_dumps":/docker-entrypoint-initdb.d:ro \
+        -p ${HOST_PORT}:5432 -d postgres:15 >/dev/null
+      sleep 1
+      chmod 755 "$ROOT_DIR/backend/postgres-data" 2>/dev/null || true
+    fi
+  fi
+
+  export DATABASE_URL="postgresql://postgres:postgres@localhost:${HOST_PORT}/fleet_violations"
+  echo "DATABASE_URL set to ${DATABASE_URL}"
+
+  # wait for postgres to become available
+  echo "Waiting for Postgres to accept connections on host port ${HOST_PORT}..."
+  for i in {1..30}; do
+    if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$" && docker exec "${CONTAINER_NAME}" pg_isready -U postgres >/dev/null 2>&1; then
+      echo "Postgres (${CONTAINER_NAME}) is ready"
+      return 0
+    fi
+    sleep 1
+  done
+  echo "Postgres did not become ready in time"
+  return 2
+}
+
+if [ "$NO_DOCKER" -eq 0 ]; then
+  start_docker_postgres || true
+fi
+
+# Ensure the repo's SQL dump exists so the container can initialize the DB from it.
+if [ "$NO_DOCKER" -eq 0 ]; then
+  if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+    echo "Docker Postgres is not running; backend will still use DATABASE_URL=${DATABASE_URL}"
+  fi
+fi
+
+echo "Starting backend (uvicorn)"
+# Run uvicorn from backend root.
+# Prefer the project's backend venv when present to avoid picking up another repo's venv.
+export PYTHONPATH="."
+if [ -x "$ROOT_DIR/backend/venv/bin/uvicorn" ]; then
+  UVICORN_BIN="$ROOT_DIR/backend/venv/bin/uvicorn"
+elif command -v uvicorn >/dev/null 2>&1; then
+  UVICORN_BIN="$(command -v uvicorn)"
+else
+  echo "uvicorn not found. Install backend dependencies first."
+  exit 1
+fi
+
+echo "Using uvicorn: ${UVICORN_BIN}"
+# Uvicorn's watchfiles reloader always includes the current working directory.
+# Since Docker Postgres data lives under backend/postgres-data and can contain
+# root-owned paths, tell watchfiles to ignore permission-denied entries.
+export WATCHFILES_IGNORE_PERMISSION_DENIED=true
+exec "$UVICORN_BIN" app.main:app \
+  --reload \
+  --reload-dir app \
+  --reload-exclude "postgres-data/*" \
+  --host 0.0.0.0 \
+  --port 8000

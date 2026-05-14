@@ -11,6 +11,8 @@ env/
 
 # Database
 *.db
+backend/postgres-data/
+backend/postgres-data-alt/
 
 # Environment
 .env

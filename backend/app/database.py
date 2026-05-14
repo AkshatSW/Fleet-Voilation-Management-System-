@@ -1,23 +1,19 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 from app.config import settings
 
 
-if not settings.DATABASE_URL:
-    raise RuntimeError(
-        "DATABASE_URL is not set. A PostgreSQL connection string is required "
-        "(e.g. postgresql://user:password@host:port/dbname)."
-    )
+database_url = settings.DATABASE_URL
 
-if not settings.DATABASE_URL.startswith(("postgresql://", "postgresql+psycopg2://")):
+if not database_url.startswith(("postgresql://", "postgresql+psycopg2://")):
     raise RuntimeError(
-        "Only PostgreSQL is supported. DATABASE_URL must start with "
-        "'postgresql://' or 'postgresql+psycopg2://'."
+        f"Unsupported database URL: {database_url}. "
+        "Must start with 'postgresql://' or 'postgresql+psycopg2://'"
     )
 
 engine = create_engine(
-    settings.DATABASE_URL,
+    database_url,
     pool_pre_ping=True,
 )
 

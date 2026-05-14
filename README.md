@@ -274,6 +274,56 @@ python seed.py
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+### Starting PostgreSQL (local development)
+
+If you want to run the backend against PostgreSQL locally (recommended for parity with production), add these instructions.
+
+- Docker (recommended):
+
+```bash
+# from repo root - starts Postgres and runs any SQL dumps in `backend/db_dumps`
+docker run --name fleet-postgres \
+  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=fleet_violations \
+  -v "$PWD/backend/postgres-data":/var/lib/postgresql/data \
+  -v "$PWD/backend/db_dumps":/docker-entrypoint-initdb.d:ro \
+  -p 5432:5432 -d postgres:15
+```
+
+The container exposes Postgres on `localhost:5432`. SQL files from `backend/db_dumps` will be executed on the first container startup.
+
+- Install Postgres locally (alternatives):
+
+```bash
+# Ubuntu/Debian example
+sudo apt update
+sudo apt install postgresql
+sudo systemctl start postgresql
+# Create DB and user (adjust password as desired)
+sudo -u postgres psql -c "CREATE DATABASE fleet_violations;"
+sudo -u postgres psql -c "CREATE USER postgres WITH PASSWORD 'postgres';"
+```
+
+- Configure the app environment:
+
+```bash
+cp backend/.env.example backend/.env
+# Edit backend/.env and set:
+# DATABASE_URL=postgresql://postgres:postgres@localhost:5432/fleet_violations
+```
+
+- Verify and run the backend:
+
+```bash
+# (optional) Test connection with psql client
+psql postgresql://postgres:postgres@localhost:5432/fleet_violations
+
+# from backend/ after installing deps
+# pip install -r requirements.txt
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+If you'd like, I can add a `docker-compose.yml` to this repo for convenience.
+
 ### Frontend Setup
 
 ```bash

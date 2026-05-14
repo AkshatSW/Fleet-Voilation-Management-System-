@@ -2,8 +2,8 @@
 REM One-click launcher for Fleet Violation Monitoring (Windows).
 REM - Bootstraps backend venv + pip install on first run
 REM - Bootstraps frontend node_modules on first run
-REM - Seeds the SQLite DB if missing
-REM - Starts FastAPI (uvicorn) on :8000 and Vite on :5173 in separate windows
+REM - Seeds the PostgreSQL database if missing
+REM - Starts FastAPI (uvicorn) on :8000 and Vite on :5176 in separate windows
 REM - Close those windows (or Ctrl+C inside them) to stop.
 
 setlocal ENABLEDELAYEDEXPANSION
@@ -102,14 +102,14 @@ popd
 
 REM --- launch both in new windows ---
 echo ==^> Starting backend  (http://localhost:8000)
-start "Fleet Backend" cmd /k "cd /d "%BACKEND_DIR%" && call "%VENV_DIR%\Scripts\activate.bat" && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"
+start "Fleet Backend" cmd /k "cd /d "%BACKEND_DIR%" && call "%VENV_DIR%\Scripts\activate.bat" && set WATCHFILES_IGNORE_PERMISSION_DENIED=true && uvicorn app.main:app --reload --reload-dir app --reload-exclude postgres-data/* --host 0.0.0.0 --port 8000"
 
-echo ==^> Starting frontend (http://localhost:5173)
+echo ==^> Starting frontend (http://localhost:5176)
 start "Fleet Frontend" cmd /k "cd /d "%FRONTEND_DIR%" && npm run dev"
 
 echo.
 echo Backend  -^> http://localhost:8000
-echo Frontend -^> http://localhost:5173
+echo Frontend -^> http://localhost:5176
 echo Close the "Fleet Backend" and "Fleet Frontend" windows to stop.
 
 endlocal

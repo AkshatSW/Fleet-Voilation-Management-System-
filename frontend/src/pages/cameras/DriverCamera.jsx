@@ -374,8 +374,6 @@ export default function DriverCamera() {
     const eventType = violationType === 'STOP_SIGN_VIOLATION' ? 'stop_sign_violation' : 'stop_sign_detected'
 
     // Trigger voice alert for stop signs
-    const voiceMessage = 'Stop sign ahead. Prepare to stop.'
-
     const voiceMessage = data.signLabel === 'Stop Sign'
       ? 'Stop sign ahead. Prepare to stop.'
       : data.signLabel === 'Traffic Light'
@@ -538,21 +536,13 @@ export default function DriverCamera() {
     console.log('[StopSign] Lost detection:', detection)
   }, [])
 
-  // Prefer road-facing stream for stop sign detection, fallback to main stream.
+  // In-browser YOLOv8n via ONNX Runtime Web — no server round-trip, GPU accelerated.
+  // See hooks/useStopSignLocal.js.
   const {
     startDetection: startStopSignDetection,
     stopDetection: stopStopSignDetection,
     isModelReady: isStopSignModelReady,
-  } = useStopSignCamera(
-    stopSignVideoRef,
-    handleCameraDetection,
-    handleCameraLost,
-    stopSignBboxRef,
-  )
-  // In-browser YOLOv8n via ONNX Runtime Web — no server round-trip, GPU accelerated.
-  // See hooks/useStopSignLocal.js.
-  const { startDetection: startStopSignDetection, stopDetection: stopStopSignDetection } =
-    useStopSignLocal(videoRef, handleCameraDetection, handleCameraLost, stopSignBboxRef)
+  } = useStopSignLocal(videoRef, handleCameraDetection, handleCameraLost, stopSignBboxRef)
 
   // Fetch OSM traffic signs when location is available
   useEffect(() => {
@@ -699,7 +689,6 @@ export default function DriverCamera() {
       }
     }
   }, [gpsEnabled, fusion])
-  }, [gpsEnabled, cameraActive, detectionEnabled, refreshSpeedLimit])
 
   // ─────────── Seatbelt detection (backend two-stage YOLOv5 + Keras) ───────────
   // Captures a JPEG from the live video and posts it to /api/detect/seatbelt.
@@ -1008,41 +997,6 @@ export default function DriverCamera() {
     ctx.fillText(`Speed: ${speedRef.current} km/h`, 10, 58)
     ctx.shadowBlur = 0
 
-    animationRef.current = requestAnimationFrame(detectFrame)
-  }, [sendViolation])
-
-  const drawRoadOverlay = useCallback(() => {
-    const roadVideo = roadVideoRef.current
-    const roadCanvas = roadCanvasRef.current
-    if (!roadVideo || !roadCanvas) return
-    if (roadVideo.readyState < 2) return
-
-    roadCanvas.width = roadVideo.videoWidth
-    roadCanvas.height = roadVideo.videoHeight
-    const ctx = roadCanvas.getContext('2d')
-    ctx.clearRect(0, 0, roadCanvas.width, roadCanvas.height)
-
-    const ss = stopSignBboxRef.current
-    if (!ss?.bbox) return
-
-    const [bx, by, bw, bh] = ss.bbox
-    ctx.strokeStyle = '#ff4d4f'
-    ctx.lineWidth = 3
-    ctx.strokeRect(bx, by, bw, bh)
-    ctx.fillStyle = 'rgba(255, 77, 79, 0.9)'
-    ctx.font = 'bold 14px sans-serif'
-    ctx.fillText(ss.label || 'STOP SIGN', bx, Math.max(16, by - 6))
-  }, [])
-
-  useEffect(() => {
-    if (!cameraActive) return undefined
-
-    const id = setInterval(() => {
-      drawRoadOverlay()
-    }, 60)
-
-    return () => clearInterval(id)
-  }, [cameraActive, drawRoadOverlay])
     // Stop-sign bbox overlay — styled like a YOLO detection annotation:
     // green box, label pill with text on top-left corner of the box.
     const ss = stopSignBboxRef.current
@@ -1097,6 +1051,39 @@ export default function DriverCamera() {
 
     animationRef.current = requestAnimationFrame(detectFrame)
   }, [sendViolation])
+
+  const drawRoadOverlay = useCallback(() => {
+    const roadVideo = roadVideoRef.current
+    const roadCanvas = roadCanvasRef.current
+    if (!roadVideo || !roadCanvas) return
+    if (roadVideo.readyState < 2) return
+
+    roadCanvas.width = roadVideo.videoWidth
+    roadCanvas.height = roadVideo.videoHeight
+    const ctx = roadCanvas.getContext('2d')
+    ctx.clearRect(0, 0, roadCanvas.width, roadCanvas.height)
+
+    const ss = stopSignBboxRef.current
+    if (!ss?.bbox) return
+
+    const [bx, by, bw, bh] = ss.bbox
+    ctx.strokeStyle = '#ff4d4f'
+    ctx.lineWidth = 3
+    ctx.strokeRect(bx, by, bw, bh)
+    ctx.fillStyle = 'rgba(255, 77, 79, 0.9)'
+    ctx.font = 'bold 14px sans-serif'
+    ctx.fillText(ss.label || 'STOP SIGN', bx, Math.max(16, by - 6))
+  }, [])
+
+  useEffect(() => {
+    if (!cameraActive) return undefined
+
+    const id = setInterval(() => {
+      drawRoadOverlay()
+    }, 60)
+
+    return () => clearInterval(id)
+  }, [cameraActive, drawRoadOverlay])
 
   // Attaches a MediaStream to the <video> and wires up everything downstream
   // (face detection loop, stop-sign detection, recording buffer, RTC publish,
