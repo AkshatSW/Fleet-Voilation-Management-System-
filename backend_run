@@ -40,8 +40,66 @@ DEFAULT_DB_PORT=5433
 CONTAINER_NAME="fleet-postgres-local"
 HOST_PORT="${FLEET_PG_PORT:-$DEFAULT_DB_PORT}"
 
-# Provide sensible defaults if not set in .env or if Docker is used.
-: "${DATABASE_URL:=postgresql://postgres:postgres@localhost:${HOST_PORT}/fleet_violations}"
+# Docker Postgres credentials:
+# 1) FLEET_PG_* (preferred for this script)
+# 2) POSTGRES_* (generic fallback)
+PG_USER="${FLEET_PG_USER:-${POSTGRES_USER:-}}"
+PG_PASSWORD="${FLEET_PG_PASSWORD:-${POSTGRES_PASSWORD:-}}"
+PG_DB="${FLEET_PG_DB:-${POSTGRES_DB:-}}"
+
+# Reuse values from DATABASE_URL if not explicitly provided via env vars.
+if [ -n "${DATABASE_URL:-}" ] && { [ -z "${PG_USER}" ] || [ -z "${PG_PASSWORD}" ] || [ -z "${PG_DB}" ]; }; then
+  if command -v python3 >/dev/null 2>&1; then
+    readarray -t parsed_db_fields < <(
+      DATABASE_URL="$DATABASE_URL" python3 - <<'PY'
+from urllib.parse import urlparse
+import os
+
+url = os.environ.get("DATABASE_URL", "")
+try:
+    parsed = urlparse(url)
+except Exception:
+    parsed = None
+
+user = parsed.username if parsed else ""
+password = parsed.password if parsed else ""
+database = (parsed.path or "").lstrip("/") if parsed else ""
+
+print(user)
+print(password)
+print(database)
+PY
+    )
+
+    parsed_user="${parsed_db_fields[0]:-}"
+    parsed_password="${parsed_db_fields[1]:-}"
+    parsed_db="${parsed_db_fields[2]:-}"
+
+    [ -n "$parsed_user" ] && PG_USER="${PG_USER:-$parsed_user}"
+    [ -n "$parsed_password" ] && PG_PASSWORD="${PG_PASSWORD:-$parsed_password}"
+    [ -n "$parsed_db" ] && PG_DB="${PG_DB:-$parsed_db}"
+  fi
+fi
+
+: "${PG_USER:=postgres}"
+: "${PG_DB:=fleet_violations}"
+
+if [ "$NO_DOCKER" -eq 0 ] && [ -z "${PG_PASSWORD:-}" ]; then
+  echo "Missing Postgres password. Set FLEET_PG_PASSWORD (or POSTGRES_PASSWORD) in backend/.env"
+  exit 1
+fi
+
+if [ -z "${DATABASE_URL:-}" ]; then
+  if [ -z "${PG_PASSWORD:-}" ]; then
+    echo "DATABASE_URL is not set and no Postgres password was provided."
+    exit 1
+  fi
+  DATABASE_URL="postgresql://${PG_USER}:${PG_PASSWORD}@localhost:${HOST_PORT}/${PG_DB}"
+fi
+
+mask_database_url() {
+  echo "$1" | sed -E 's#(://[^:/]+:)[^@]+@#\1***@#'
+}
 
 start_docker_postgres() {
   if ! command -v docker >/dev/null 2>&1; then
@@ -65,7 +123,7 @@ start_docker_postgres() {
       echo "Creating ${CONTAINER_NAME} container on host port ${HOST_PORT}"
       mkdir -p "$ROOT_DIR/backend/postgres-data"
       docker run --name "${CONTAINER_NAME}" \
-        -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=fleet_violations \
+        -e POSTGRES_USER="${PG_USER}" -e POSTGRES_PASSWORD="${PG_PASSWORD}" -e POSTGRES_DB="${PG_DB}" \
         -v "$ROOT_DIR/backend/postgres-data":/var/lib/postgresql/data \
         -v "$ROOT_DIR/backend/db_dumps":/docker-entrypoint-initdb.d:ro \
         -p ${HOST_PORT}:5432 -d postgres:15 >/dev/null
@@ -74,13 +132,13 @@ start_docker_postgres() {
     fi
   fi
 
-  export DATABASE_URL="postgresql://postgres:postgres@localhost:${HOST_PORT}/fleet_violations"
-  echo "DATABASE_URL set to ${DATABASE_URL}"
+  export DATABASE_URL="postgresql://${PG_USER}:${PG_PASSWORD}@localhost:${HOST_PORT}/${PG_DB}"
+  echo "DATABASE_URL set to $(mask_database_url "${DATABASE_URL}")"
 
   # wait for postgres to become available
   echo "Waiting for Postgres to accept connections on host port ${HOST_PORT}..."
   for i in {1..30}; do
-    if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$" && docker exec "${CONTAINER_NAME}" pg_isready -U postgres >/dev/null 2>&1; then
+    if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$" && docker exec "${CONTAINER_NAME}" pg_isready -U "${PG_USER}" >/dev/null 2>&1; then
       echo "Postgres (${CONTAINER_NAME}) is ready"
       return 0
     fi
@@ -97,7 +155,7 @@ fi
 # Ensure the repo's SQL dump exists so the container can initialize the DB from it.
 if [ "$NO_DOCKER" -eq 0 ]; then
   if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
-    echo "Docker Postgres is not running; backend will still use DATABASE_URL=${DATABASE_URL}"
+    echo "Docker Postgres is not running; backend will still use DATABASE_URL=$(mask_database_url "${DATABASE_URL}")"
   fi
 fi
 

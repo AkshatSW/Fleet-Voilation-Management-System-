@@ -282,8 +282,12 @@ If you want to run the backend against PostgreSQL locally (recommended for parit
 
 ```bash
 # from repo root - starts Postgres and runs any SQL dumps in `backend/db_dumps`
+export FLEET_PG_USER=postgres
+export FLEET_PG_PASSWORD=change-me
+export FLEET_PG_DB=fleet_violations
+
 docker run --name fleet-postgres \
-  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=fleet_violations \
+  -e POSTGRES_USER="$FLEET_PG_USER" -e POSTGRES_PASSWORD="$FLEET_PG_PASSWORD" -e POSTGRES_DB="$FLEET_PG_DB" \
   -v "$PWD/backend/postgres-data":/var/lib/postgresql/data \
   -v "$PWD/backend/db_dumps":/docker-entrypoint-initdb.d:ro \
   -p 5432:5432 -d postgres:15
@@ -300,7 +304,7 @@ sudo apt install postgresql
 sudo systemctl start postgresql
 # Create DB and user (adjust password as desired)
 sudo -u postgres psql -c "CREATE DATABASE fleet_violations;"
-sudo -u postgres psql -c "CREATE USER postgres WITH PASSWORD 'postgres';"
+sudo -u postgres psql -c "CREATE USER postgres WITH PASSWORD '<your-local-password>';"
 ```
 
 - Configure the app environment:
@@ -308,14 +312,14 @@ sudo -u postgres psql -c "CREATE USER postgres WITH PASSWORD 'postgres';"
 ```bash
 cp backend/.env.example backend/.env
 # Edit backend/.env and set:
-# DATABASE_URL=postgresql://postgres:postgres@localhost:5432/fleet_violations
+# DATABASE_URL=postgresql://postgres:<your-local-password>@localhost:5432/fleet_violations
 ```
 
 - Verify and run the backend:
 
 ```bash
 # (optional) Test connection with psql client
-psql postgresql://postgres:postgres@localhost:5432/fleet_violations
+psql postgresql://postgres:<your-local-password>@localhost:5432/fleet_violations
 
 # from backend/ after installing deps
 # pip install -r requirements.txt
