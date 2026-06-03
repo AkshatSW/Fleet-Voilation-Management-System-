@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Card, Descriptions, Table, Spin, Button, Typography, Row, Col, Tag, Space } from 'antd'
+import { Card, Descriptions, Table, Spin, Button, Typography, Row, Col, Tag, Space, message } from 'antd'
 import { ArrowLeftOutlined } from '@ant-design/icons'
 import RiskBadge from '@/components/common/RiskBadge'
 import EventTypeTag from '@/components/common/EventTypeTag'
@@ -9,6 +9,7 @@ import ScoreTrendChart from '@/components/charts/ScoreTrendChart'
 import StatCard from '@/components/common/StatCard'
 import { driverService } from '@/services'
 import { SafetyCertificateOutlined, WarningOutlined } from '@ant-design/icons'
+import useRealtimeUpdates from '@/hooks/useRealtimeUpdates'
 import dayjs from 'dayjs'
 
 const { Title, Text } = Typography
@@ -23,8 +24,8 @@ export default function DriverDetail() {
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
 
-  useEffect(() => {
-    Promise.all([
+  const fetchDriver = useCallback(() => {
+    return Promise.all([
       driverService.getById(id),
       driverService.getScores(id),
       driverService.getViolations(id, { page: 1, page_size: 10 }),
@@ -34,10 +35,20 @@ export default function DriverDetail() {
         setScores(scoresRes.data)
         setViolations(violationsRes.data.items)
         setViolationTotal(violationsRes.data.total)
+        setPage(1)
       })
-      .catch(console.error)
-      .finally(() => setLoading(false))
+      .catch((err) => {
+        console.error('Failed to fetch driver:', err)
+        message.error('Failed to load driver data')
+        throw err
+      })
   }, [id])
+
+  useEffect(() => {
+    setLoading(true)
+    fetchDriver()
+      .finally(() => setLoading(false))
+  }, [fetchDriver])
 
   const loadViolations = (p) => {
     setPage(p)
@@ -47,6 +58,16 @@ export default function DriverDetail() {
         setViolationTotal(res.data.total)
       })
   }
+
+  // Real-time updates: refresh when driver is updated or navigate back if deleted
+  useRealtimeUpdates(useCallback((eventType, eventData) => {
+    if (eventType === 'driver:updated') {
+      fetchDriver()
+    } else if (eventType === 'driver:deleted' && eventData?.driver_id === parseInt(id)) {
+      message.warning('This driver has been deleted')
+      navigate('/drivers')
+    }
+  }, [id, fetchDriver, navigate]))
 
   if (loading) return <div style={{ textAlign: 'center', paddingTop: 100 }}><Spin size="large" /></div>
   if (!driver) return <Text>Driver not found</Text>

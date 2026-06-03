@@ -23,6 +23,7 @@ function CameraFeed({ camera, onClose }) {
   const { connect, disconnect, remoteStream, isConnected } = useWebRTCViewer(String(camera.id))
   const videoRef = useRef(null)
   const [timedOut, setTimedOut] = useState(false)
+  const [isConnecting, setIsConnecting] = useState(true)
   const connectRef = useRef(connect)
   const disconnectRef = useRef(disconnect)
 
@@ -30,8 +31,13 @@ function CameraFeed({ camera, onClose }) {
   useEffect(() => { disconnectRef.current = disconnect }, [disconnect])
 
   useEffect(() => {
+    setIsConnecting(true)
+    const connectTimer = setTimeout(() => setIsConnecting(false), 2000)
     connectRef.current()
-    return () => disconnectRef.current()
+    return () => {
+      clearTimeout(connectTimer)
+      disconnectRef.current()
+    }
   }, [camera.id])
 
   useEffect(() => {
@@ -55,7 +61,7 @@ function CameraFeed({ camera, onClose }) {
         <Space>
           <VideoCameraOutlined />
           {camera.name}
-          <Badge status={isConnected ? 'success' : 'processing'} text={isConnected ? 'Connected' : 'Connecting...'} />
+          <Badge status={isConnected ? 'success' : isConnecting ? 'processing' : 'error'} text={isConnected ? 'Connected' : isConnecting ? 'Connecting...' : 'Connection failed'} />
         </Space>
       }
       extra={
@@ -84,11 +90,11 @@ function CameraFeed({ camera, onClose }) {
             style={{ width: '100%', height: '100%', objectFit: 'contain' }}
           />
         ) : timedOut ? (
-          <Text type="secondary" style={{ color: '#999' }}>
-            No active stream from this camera. Make sure the driver camera is running.
+          <Text type="secondary" style={{ color: '#999', textAlign: 'center' }}>
+            Stream unavailable. Make sure the driver camera is running.
           </Text>
         ) : (
-          <Text type="secondary" style={{ color: '#666' }}>Waiting for driver stream...</Text>
+          <Text type="secondary" style={{ color: '#666' }}>Establishing connection...</Text>
         )}
       </div>
     </Card>
@@ -126,7 +132,7 @@ export default function ManagerMonitoring() {
     if (eventType === 'violation:new') {
       fetchViolations()
     }
-    if (eventType === 'camera:heartbeat') {
+    if (eventType === 'camera:heartbeat' || eventType === 'driver:updated' || eventType === 'driver:deleted') {
       fetchCameras()
     }
   }, [fetchCameras, fetchViolations]))
@@ -139,8 +145,21 @@ export default function ManagerMonitoring() {
     return 'online'
   }
 
-  const onlineCameras = cameras.filter((c) => getCameraEffectiveStatus(c) === 'online')
-  const otherCameras = cameras.filter((c) => getCameraEffectiveStatus(c) !== 'online')
+  // Filter to only show active cameras currently assigned to drivers (no past/deleted cameras)
+  const assignedCameras = cameras.filter((c) => {
+    if (!c.current_driver_name || !c.current_vehicle_plate) return false
+    // Also check for recent heartbeat (within last 24 hours) - excludes truly stale/deleted cameras
+    if (!c.last_heartbeat) return false
+    const hoursSinceHeartbeat = dayjs().diff(dayjs(c.last_heartbeat), 'hour')
+    return hoursSinceHeartbeat < 24
+  })
+  const assignedDriverNames = new Set(assignedCameras.map((c) => c.current_driver_name))
+  
+  // Filter violations to only show those from drivers with active cameras
+  const filteredViolations = violations.filter((v) => assignedDriverNames.has(v.driver_name))
+  
+  const onlineCameras = assignedCameras.filter((c) => getCameraEffectiveStatus(c) === 'online')
+  const otherCameras = assignedCameras.filter((c) => getCameraEffectiveStatus(c) !== 'online')
 
   return (
     <div>
@@ -169,11 +188,11 @@ export default function ManagerMonitoring() {
         {/* Camera Grid */}
         <Col xs={24} lg={16}>
           <Card title="Camera Grid" size="small" style={{ marginBottom: 16 }}>
-            {cameras.length === 0 && !loading && (
-              <Empty description="No cameras registered" />
+            {assignedCameras.length === 0 && !loading && (
+              <Empty description="No active drivers with cameras assigned" />
             )}
             <Row gutter={[12, 12]}>
-              {cameras.map((camera) => {
+              {assignedCameras.map((camera) => {
                 const effectiveStatus = getCameraEffectiveStatus(camera)
                 const isOnline = effectiveStatus === 'online'
                 const isStale = effectiveStatus === 'stale'
@@ -258,7 +277,7 @@ export default function ManagerMonitoring() {
             style={{ maxHeight: 600, overflow: 'auto' }}
           >
             <List
-              dataSource={violations}
+              dataSource={filteredViolations}
               size="small"
               loading={loading}
               renderItem={(item) => (

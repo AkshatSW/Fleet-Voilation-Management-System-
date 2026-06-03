@@ -30,39 +30,166 @@ export default function Login() {
       justifyContent: 'center',
       alignItems: 'center',
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #001529 0%, #003a70 100%)',
+      background: '#f8fafc',
+      position: 'relative',
     }}>
-      <Card style={{ width: 400, borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}>
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <SafetyCertificateOutlined style={{ fontSize: 48, color: '#1677ff' }} />
-          <Title level={3} style={{ marginTop: 12, marginBottom: 4 }}>Fleet Violation Monitoring</Title>
-          <Text type="secondary">Sign in to access the dashboard</Text>
+      <Card style={{
+        width: '100%',
+        maxWidth: 420,
+        borderRadius: 12,
+        border: '1px solid #e2e8f0',
+        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)',
+        background: '#ffffff',
+        position: 'relative',
+        zIndex: 10,
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: 40 }}>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 56,
+            height: 56,
+            background: '#1e3a8a',
+            borderRadius: 10,
+            marginBottom: 20,
+            boxShadow: '0 4px 12px rgba(30, 58, 138, 0.15)',
+          }}>
+            <SafetyCertificateOutlined style={{ fontSize: 32, color: '#ffffff' }} />
+          </div>
+          <Title level={2} style={{ margin: 0, marginBottom: 8, color: '#0f172a', fontWeight: 700 }}>
+            Fleet Violation Management
+          </Title>
+          <Text type="secondary" style={{ fontSize: 13, color: '#64748b' }}>
+            Enterprise Monitoring System
+          </Text>
         </div>
-        <Form layout="vertical" onFinish={onFinish} size="large">
+
+        <Form layout="vertical" onFinish={onFinish} size="large" style={{ marginBottom: 24 }}>
           <Form.Item
             name="username"
             rules={[{ required: true, message: 'Please enter your username' }]}
+            style={{ marginBottom: 16 }}
           >
-            <Input prefix={<UserOutlined />} placeholder="Username" />
+            <Input
+              prefix={<UserOutlined style={{ color: '#94a3b8' }} />}
+              placeholder="Username"
+              style={{
+                borderRadius: 8,
+                border: '1px solid #e2e8f0',
+                fontSize: 14,
+                padding: '10px 12px',
+              }}
+            />
           </Form.Item>
           <Form.Item
             name="password"
             rules={[{ required: true, message: 'Please enter your password' }]}
+            style={{ marginBottom: 24 }}
           >
-            <Input.Password prefix={<LockOutlined />} placeholder="Password" />
+            <Input.Password
+              prefix={<LockOutlined style={{ color: '#94a3b8' }} />}
+              placeholder="Password"
+              style={{
+                borderRadius: 8,
+                border: '1px solid #e2e8f0',
+                fontSize: 14,
+                padding: '10px 12px',
+              }}
+            />
           </Form.Item>
-          <Form.Item>
-            <Button type="primary" htmlType="submit" loading={loading} block>
+          <Form.Item style={{ marginBottom: 0 }}>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={loading}
+              block
+              size="large"
+              style={{
+                borderRadius: 8,
+                fontWeight: 600,
+                fontSize: 14,
+                height: 44,
+                background: '#1e3a8a',
+                border: 'none',
+              }}
+            >
               Sign In
             </Button>
           </Form.Item>
         </Form>
-        <div style={{ textAlign: 'center' }}>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            Demo: admin/admin123 | manager/manager123 | driver1/driver123
+
+        <div style={{
+          padding: 16,
+          background: '#f1f5f9',
+          borderRadius: 8,
+          border: '1px solid #e2e8f0',
+          marginBottom: 20,
+        }}>
+          <Text style={{ fontSize: 12, display: 'block', marginBottom: 8, fontWeight: 600, color: '#0f172a' }}>
+            Demo Credentials
+          </Text>
+          <Space direction="vertical" size={6} style={{ fontSize: 11 }}>
+            <Text type="secondary">Admin: <Text strong style={{ color: '#0f172a' }}>admin</Text> / admin123</Text>
+            <Text type="secondary">Manager: <Text strong style={{ color: '#0f172a' }}>manager</Text> / manager123</Text>
+            <Text type="secondary">Driver: <Text strong style={{ color: '#0f172a' }}>driver1</Text> / driver123</Text>
+          </Space>
+        </div>
+
+        <div style={{
+          textAlign: 'center',
+          padding: 16,
+          background: '#f8fafc',
+          borderRadius: 8,
+          border: '1px solid #e2e8f0',
+        }}>
+          <Text style={{ fontSize: 11, color: '#64748b' }}>
+            © 2026 Fleet Violation Management System. All rights reserved.
           </Text>
         </div>
       </Card>
+
+      <style>{`
+        .ant-card {
+          animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .ant-input,
+        .ant-input-password {
+          border-radius: 8px !important;
+          font-size: 14px !important;
+        }
+
+        .ant-input:hover,
+        .ant-input-password:hover {
+          border-color: #1e3a8a !important;
+        }
+
+        .ant-input-focused,
+        .ant-input-password-focused {
+          border-color: #1e3a8a !important;
+          box-shadow: 0 0 0 2px rgba(30, 58, 138, 0.1) !important;
+        }
+
+        .ant-btn-primary {
+          background: #1e3a8a !important;
+        }
+
+        .ant-btn-primary:hover {
+          background: #163073 !important;
+        }
+      `}</style>
     </div>
   )
 }
