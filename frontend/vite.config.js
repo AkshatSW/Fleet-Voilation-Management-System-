@@ -26,15 +26,15 @@ export default defineConfig({
     host: true,
     proxy: {
       '/api/ws': {
-        target: 'ws://127.0.0.1:8000',
+        target: 'ws://127.0.0.1:8888',
         ws: true,
       },
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://127.0.0.1:8888',
         changeOrigin: true,
       },
       '/uploads': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://127.0.0.1:8888',
         changeOrigin: true,
       },
     },

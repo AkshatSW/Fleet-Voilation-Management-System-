@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import {
   Card, Row, Col, Typography, Select, Button, Tag, List, Badge, Space,
   Alert, Switch, message, Statistic, Progress, Modal, Input,
@@ -89,6 +89,8 @@ export default function DriverCamera() {
 
   const [selectedDriver, setSelectedDriver] = useState(null)
   const [selectedVehicle, setSelectedVehicle] = useState(null)
+  const [driverDropdownOpen, setDriverDropdownOpen] = useState(false)
+  const [vehicleDropdownOpen, setVehicleDropdownOpen] = useState(false)
   const [drivers, setDrivers] = useState([])
   const [vehicles, setVehicles] = useState([])
   const [cameraDbId, setCameraDbId] = useState(null)
@@ -310,6 +312,24 @@ export default function DriverCamera() {
   useEffect(() => {
     fetchDriversAndVehicles()
   }, [fetchDriversAndVehicles])
+
+  // Compute driver options
+  const driverOptions = useMemo(() => {
+    if (!drivers || drivers.length === 0) return []
+    return drivers.map((d) => ({
+      label: `${d.name} (${d.employee_id})`,
+      value: d.id
+    }))
+  }, [drivers])
+
+  // Compute vehicle options
+  const vehicleOptions = useMemo(() => {
+    if (!vehicles || vehicles.length === 0) return []
+    return vehicles.map((v) => ({
+      label: `${v.plate_number} - ${v.model}`,
+      value: v.id
+    }))
+  }, [vehicles])
 
   // Real-time updates: refresh driver/vehicle list when drivers/vehicles change
   useRealtimeUpdates(useCallback((eventType, eventData) => {
@@ -1345,17 +1365,26 @@ export default function DriverCamera() {
               <>
                 <Select
                   placeholder={`Select Driver (${drivers.length} available)`}
+                  value={selectedDriver}
+                  onChange={(val) => {
+                    setSelectedDriver(val)
+                    setDriverDropdownOpen(false)
+                  }}
+                  onDropdownVisibleChange={(visible) => {
+                    setDriverDropdownOpen(visible)
+                  }}
+                  open={driverDropdownOpen}
+                  options={driverOptions}
                   style={{ width: '100%' }}
-                  virtual={false}
-                  popupMatchSelectWidth={false}
                   size="small"
-                  popupClassName="driver-camera-select-popup"
-                  notFoundContent={drivers.length === 0 ? 'No drivers available' : undefined}
-                  options={drivers.map((d) => ({ 
-                    label: `${d.name} (${d.employee_id})`, 
-                    value: d.id 
-                  }))}
-                  onChange={setSelectedDriver}
+                  getPopupContainer={() => document.body}
+                  virtual={false}
+                  popupStyle={{ 
+                    zIndex: 99999,
+                    maxHeight: '300px',
+                    overflow: 'auto',
+                    position: 'fixed'
+                  }}
                 />
               </>
             )}
@@ -1366,17 +1395,26 @@ export default function DriverCamera() {
             </div>
             <Select
               placeholder={`Select Vehicle (${vehicles.length} available)`}
+              value={selectedVehicle}
+              onChange={(val) => {
+                setSelectedVehicle(val)
+                setVehicleDropdownOpen(false)
+              }}
+              onDropdownVisibleChange={(visible) => {
+                setVehicleDropdownOpen(visible)
+              }}
+              open={vehicleDropdownOpen}
+              options={vehicleOptions}
               style={{ width: '100%' }}
-              virtual={false}
-              popupMatchSelectWidth={false}
               size="small"
-              popupClassName="driver-camera-select-popup"
-              notFoundContent={vehicles.length === 0 ? 'No vehicles available' : undefined}
-              options={vehicles.map((v) => ({ 
-                label: `${v.plate_number} - ${v.model}`, 
-                value: v.id 
-              }))}
-              onChange={setSelectedVehicle}
+              getPopupContainer={() => document.body}
+              virtual={false}
+              popupStyle={{ 
+                zIndex: 99999,
+                maxHeight: '300px',
+                overflow: 'auto',
+                position: 'fixed'
+              }}
             />
           </Col>
           <Col span={10}>
